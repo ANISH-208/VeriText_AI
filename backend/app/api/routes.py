@@ -1,6 +1,6 @@
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
-from app.core.config import MAX_REFERENCES, MAX_TEXT_CHARS
+from app.core.config import MAX_REFERENCES, MAX_TEXT_CHARS, MAX_TOTAL_REFERENCE_CHARS
 from app.models.embedding_model import status
 from app.schemas.requests import TextAnalysisRequest
 from app.services.document_parser import read_upload
@@ -17,11 +17,15 @@ def health():
 def analyze_text(request: TextAnalysisRequest):
     if len(request.references) > MAX_REFERENCES:
         raise HTTPException(422, f"At most {MAX_REFERENCES} references are allowed.")
+    total_reference_chars = 0
     for ref in request.references:
         if not isinstance(ref.get("filename"), str) or not isinstance(ref.get("text"), str):
             raise HTTPException(422, "Each reference needs filename and text fields.")
         if len(ref["text"]) > MAX_TEXT_CHARS:
             raise HTTPException(413, "A reference exceeds the configured text length limit.")
+        total_reference_chars += len(ref["text"])
+    if total_reference_chars > MAX_TOTAL_REFERENCE_CHARS:
+        raise HTTPException(413, "Combined reference text exceeds the configured total limit.")
     if len(request.text) > MAX_TEXT_CHARS:
         raise HTTPException(413, "Submitted text exceeds the configured limit.")
     try:
@@ -37,24 +41,33 @@ def analyze_standalone(request: TextAnalysisRequest):
         raise HTTPException(422, str(exc)) from exc
 
 @router.post("/analyze/files")
-async def analyze_files(submission: UploadFile | None = File(default=None), submitted_text: str = Form(default=""), references: list[UploadFile] = File(default=[])):
+async def analyze_files(submission: UploadFile | None = File(default=None), submitted_text: str = Form(default=""), references: list[UploadFile] = File(default=[]), ocr_language: str = Form(default="eng")):
     if len(references) > MAX_REFERENCES:
         raise HTTPException(422, f"At most {MAX_REFERENCES} reference files are allowed.")
     if submission is None and not submitted_text.strip():
         raise HTTPException(422, "Provide submitted_text or upload a submission document.")
     if len(submitted_text) > MAX_TEXT_CHARS:
         raise HTTPException(413, "Submitted text exceeds the configured limit.")
-    submitted = await read_upload(submission) if submission else submitted_text
+    submission_document = await read_upload(submission, with_metadata=True, ocr_language=ocr_language) if submission else {"text": submitted_text, "pages": [], "ocr_pages": []}
+    submitted = submission_document["text"]
     if len(submitted) > MAX_TEXT_CHARS:
         raise HTTPException(413, "Submitted document exceeds the configured text length limit.")
     refs = []
+    total_reference_chars = 0
     for ref in references:
-        ref_text = await read_upload(ref)
+        ref_document = await read_upload(ref, with_metadata=True, ocr_language=ocr_language)
+        ref_text = ref_document["text"]
         if len(ref_text) > MAX_TEXT_CHARS:
             raise HTTPException(413, f"Reference {ref.filename or 'document'} exceeds the configured text length limit.")
-        refs.append({"filename": ref.filename or "reference", "text": ref_text})
+        total_reference_chars += len(ref_text)
+        refs.append({"filename": ref.filename or "reference", "text": ref_text, "pages": ref_document["pages"], "ocr_pages": ref_document["ocr_pages"]})
+    if total_reference_chars > MAX_TOTAL_REFERENCE_CHARS:
+        raise HTTPException(413, "Combined reference text exceeds the configured total limit.")
     try:
-        return analyze(submitted, refs, standalone=not refs)
+        result = analyze(submitted, refs, standalone=not refs, submitted_pages=submission_document["pages"])
+        result["ocr_pages"] = submission_document["ocr_pages"]
+        result["ocr_reference_pages"] = {ref["filename"]: ref["ocr_pages"] for ref in refs if ref["ocr_pages"]}
+        return result
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
 

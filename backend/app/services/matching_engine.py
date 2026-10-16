@@ -8,14 +8,46 @@ from app.models.embedding_model import encode, status as semantic_status
 from app.utils.text_utils import normalize_text, split_passages, word_count
 
 
-def analyze(submitted: str, references: list[dict], standalone: bool = False) -> dict:
+def _token_highlights(left: str, right: str) -> tuple[list[dict], list[dict]]:
+    left_tokens = list(re.finditer(r"\b[\w’'-]+\b", left, re.UNICODE))
+    right_tokens = list(re.finditer(r"\b[\w’'-]+\b", right, re.UNICODE))
+    matcher = SequenceMatcher(None, [m.group().casefold() for m in left_tokens], [m.group().casefold() for m in right_tokens], autojunk=False)
+    left_ranges, right_ranges = [], []
+    for a, b, size in matcher.get_matching_blocks():
+        if size < 2:
+            continue
+        first, last = left_tokens[a], left_tokens[a + size - 1]
+        left_ranges.append({"start": first.start(), "end": last.end()})
+        first, last = right_tokens[b], right_tokens[b + size - 1]
+        right_ranges.append({"start": first.start(), "end": last.end()})
+    return left_ranges, right_ranges
+
+
+def _page_for(passage: str, pages: list[str]) -> int | None:
+    target = re.sub(r"\s+", " ", passage).strip().casefold()
+    if not target:
+        return None
+    for page_number, page in enumerate(pages, start=1):
+        candidate = re.sub(r"\s+", " ", page).strip().casefold()
+        if target in candidate:
+            return page_number
+    return None
+
+
+def analyze(submitted: str, references: list[dict], standalone: bool = False, submitted_pages: list[str] | None = None) -> dict:
     submitted = normalize_text(submitted)
     if not submitted:
         raise ValueError("Submitted text is empty.")
     source_passages = split_passages(submitted)
-    ref_rows = [(ref["filename"], passage) for ref in references for passage in split_passages(ref["text"])]
-    exact_map = {re.sub(r"\W+", " ", p.lower()).strip(): name for name, p in ref_rows}
-    candidates = [p for _, p in ref_rows]
+    ref_rows = []
+    for ref in references:
+        if ref.get("pages"):
+            for page_number, page_text in enumerate(ref["pages"], start=1):
+                ref_rows.extend((ref["filename"], passage, page_number) for passage in split_passages(page_text))
+        else:
+            ref_rows.extend((ref["filename"], passage, None) for passage in split_passages(ref["text"]))
+    exact_map = {re.sub(r"\W+", " ", p.lower()).strip(): name for name, p, _ in ref_rows}
+    candidates = [p for _, p, _ in ref_rows]
     lexical_best = [0.0] * len(source_passages)
     lexical_idx = [-1] * len(source_passages)
     semantic_best = [0.0] * len(source_passages)
@@ -28,38 +60,48 @@ def analyze(submitted: str, references: list[dict], standalone: bool = False) ->
         try:
             w = word.fit_transform(combined)
             c = char.fit_transform(combined)
-            sim = .55 * cosine_similarity(w[:len(source_passages)], w[len(source_passages):]) + .45 * cosine_similarity(c[:len(source_passages)], c[len(source_passages):])
-            for i, row in enumerate(sim):
-                lexical_idx[i] = int(row.argmax()); lexical_best[i] = float(row.max())
+            source_count = len(source_passages)
+            for start in range(0, source_count, 128):
+                end = min(source_count, start + 128)
+                sim = .55 * cosine_similarity(w[start:end], w[source_count:]) + .45 * cosine_similarity(c[start:end], c[source_count:])
+                for offset, row in enumerate(sim):
+                    lexical_idx[start + offset] = int(row.argmax()); lexical_best[start + offset] = float(row.max())
         except ValueError:
             pass
         embeddings = encode(combined)
         if embeddings is not None:
             semantic_available = True
             matrix = np.asarray(embeddings)
-            sem = matrix[:len(source_passages)] @ matrix[len(source_passages):].T
-            for i, row in enumerate(sem):
-                semantic_idx[i] = int(row.argmax()); semantic_best[i] = max(0.0, float(row.max()))
+            source_count = len(source_passages)
+            candidate_vectors = matrix[source_count:]
+            for start in range(0, source_count, 128):
+                end = min(source_count, start + 128)
+                sem = matrix[start:end] @ candidate_vectors.T
+                for offset, row in enumerate(sem):
+                    semantic_idx[start + offset] = int(row.argmax()); semantic_best[start + offset] = max(0.0, float(row.max()))
     matches = []
     matched_words = 0
-    used_ref_candidates: set[int] = set()
     for i, passage in enumerate(source_passages):
         normalized = re.sub(r"\W+", " ", passage.lower()).strip()
         exact = len(normalized) >= 25 and normalized in exact_map
-        idx = lexical_idx[i] if lexical_best[i] >= semantic_best[i] or semantic_idx[i] < 0 else semantic_idx[i]
         lex, sem = lexical_best[i], semantic_best[i]
         category = "exact" if exact else "near_exact" if lex >= LEXICAL_THRESHOLD else "semantic" if sem >= SEMANTIC_THRESHOLD else None
-        if category and idx >= 0 and idx not in used_ref_candidates:
-            name, refpass = ref_rows[idx]
+        idx = semantic_idx[i] if category == "semantic" else lexical_idx[i]
+        if category and idx >= 0:
+            name, refpass, ref_page = ref_rows[idx]
             # Exact candidate by direct lookup if best vector candidate differs.
             if exact:
                 name = exact_map[normalized]
-                refpass = next((p for n, p in ref_rows if n == name and re.sub(r"\W+", " ", p.lower()).strip() == normalized), refpass)
+                matched_exact = next(((p, page) for n, p, page in ref_rows if n == name and re.sub(r"\W+", " ", p.lower()).strip() == normalized), (refpass, ref_page))
+                refpass, ref_page = matched_exact
+            submitted_highlights, reference_highlights = _token_highlights(passage, refpass)
             matches.append({"submitted_passage": passage, "reference_name": name, "reference_passage": refpass,
                 "lexical_score": round(lex, 4), "semantic_score": round(sem, 4), "category": category,
-                "detection_method": "normalized exact text" if exact else "word/character TF-IDF" if category == "near_exact" else "sentence embedding"})
+                "detection_method": "normalized exact text" if exact else "word/character TF-IDF" if category == "near_exact" else "sentence embedding",
+                "submitted_highlights": submitted_highlights, "reference_highlights": reference_highlights,
+                "submitted_page": _page_for(passage, submitted_pages or []), "reference_page": ref_page,
+                "citation_note": ""})
             matched_words += word_count(passage)
-            used_ref_candidates.add(idx)
     # Sentence-level passages are non-overlapping, so each submitted word contributes at most once.
     lex_scores = [m["lexical_score"] for m in matches]
     sem_scores = [m["semantic_score"] for m in matches]

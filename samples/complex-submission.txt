@@ -1,0 +1,17 @@
+Urban Heat, Public Space, and a Better Tree-Planting Plan
+
+Dense city blocks may stay warm after sunset because asphalt, roofs, and masonry store solar energy and give it back to the air later. A leafy canopy can interrupt that cycle: it blocks direct sun from reaching streets and walls, and leaves move some water into the atmosphere. Its impact is not fixed; it changes with the size and health of the canopy, available water, weather, and the shape of the surrounding blocks.
+
+During one local pilot, observers followed people along two kinds of routes on very warm afternoons. Walkers on the more shaded paths described a more pleasant trip, and the pavement there registered cooler readings. Changes in the air itself were modest and inconsistent between blocks. That difference is worth paying attention to: a person may benefit from protection from direct sun even when a general-purpose thermometer shows little movement.
+
+Cities sometimes announce how many saplings they have installed as if that number were the outcome. It is only an input. A young tree needs water through drought, room for its roots, and protection from mowers, cars, and vandalism. If a large share dies within a few years, the reported planting total says little about durable canopy. Budgets should cover care, and public dashboards should track survival over time.
+
+There is also a direct overlap with the reference in this section: Tree planting is not a one-time intervention. Young trees need watering during dry periods, protection from damage, and enough uncompacted soil to support healthy roots. A city that counts only the number of trees planted may overstate the long-term benefit if many saplings do not survive. Maintenance budgets and survival rates should therefore be included in public reports.
+
+The distribution of shade is a policy choice. Some communities have fewer trees, hotter streets, and less access to parks than other parts of the same city. Officials can direct new investment toward residents with the greatest heat burden, but they should ask those residents which streets and public spaces matter most. Selecting a species also involves tradeoffs: local water needs, pollen, allergies, future climate, and conflicts with sidewalks or underground utilities all deserve consideration.
+
+Trees should complement other protections rather than carry the whole plan. Reflective roofing, canopies at bus stops, free water, and timely warnings address different parts of heat risk. To evaluate a program fairly, the city should explain how it collected data, take readings in more than one season, and label projections separately from results that were actually observed.
+
+Consider a practical measurement plan for a fictional district called Eastbank. Install temperature sensors on one sunny route and one tree-covered route, take readings at the same times for several weeks, and repeat the work in a second season. Ask residents whether shade changes their route choices, when they spend time outside, and which improvements they would fund first. Pairing those answers with temperature readings can uncover block-level benefits that a single citywide average would miss.
+
+As a separate example unrelated to urban heat, a public library might extend evening hours during exam week. Such a service should be evaluated by tracking attendance, staffing costs, and student feedback rather than assuming that a longer schedule automatically improves learning outcomes.
