@@ -5,7 +5,7 @@ A locally runnable document review tool for finding exact/near-exact overlap and
 ## Features
 
 - Compare pasted text or TXT, PDF, and DOCX submissions with up to 50 reference files (subject to a combined text-size limit).
-- Word and character n-gram TF-IDF similarity, normalized exact overlap, and local SentenceTransformer embeddings (English by default; an optional multilingual model can be configured).
+- Word and character n-gram TF-IDF similarity, normalized exact overlap, and local multilingual SentenceTransformer embeddings.
 - Token-level evidence highlights, PDF page attribution, reviewer notes and statuses, citation suggestions, and detailed PDF export.
 - Opt-in reference library stored in the browser's IndexedDB; saved files never leave this device.
 - OCR for image-based PDF pages through the installed local Tesseract OCR engine.
@@ -15,7 +15,7 @@ A locally runnable document review tool for finding exact/near-exact overlap and
 
 ## Requirements
 
-Python 3.11+ (Python 3.13 may work depending on available PyTorch wheels), Node.js 20+, npm, and Tesseract OCR. The default English model downloads on the first semantic scan. The optional multilingual model is much larger (about 470 MB) and also downloads on first use. A network connection is needed unless the selected model is already cached. To run without embeddings, set `VERITEXT_ENABLE_SEMANTIC=false`; exact and lexical checks remain active.
+Python 3.11+ (Python 3.13 may work depending on available PyTorch wheels), Node.js 20+, npm, and Tesseract OCR. The multilingual model downloads on the first semantic scan (about 470 MB). A network connection is needed unless it is already cached. To run without embeddings, set `VERITEXT_ENABLE_SEMANTIC=false`; exact and lexical checks remain active.
 
 ## Run locally
 
@@ -49,7 +49,7 @@ Run `./dev.sh` on macOS/Linux after setup. It starts backend and frontend in one
 
 ## Configuration
 
-See [backend/.env.example](backend/.env.example): model name, OCR language, semantic enablement, upload size, text and reference limits, lexical and semantic thresholds, and allowed frontend origins. Set `VERITEXT_MODEL_NAME=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` to enable cross-language semantic matching; the first model download requires a working connection to Hugging Face. OCR language data must be installed in Tesseract. Thresholds change backend behavior without frontend edits. Unsaved files are held in memory during requests, with limits enforced before parsing.
+See [backend/.env.example](backend/.env.example): model name, OCR language, semantic enablement, upload size, text and reference limits, lexical and semantic thresholds, and allowed frontend origins. Cross-language semantic matching is enabled by default. OCR language data must be installed in Tesseract. Thresholds change backend behavior without frontend edits. Unsaved files are held in memory during requests, with limits enforced before parsing.
 
 ## Architecture
 
@@ -64,7 +64,7 @@ See [backend/.env.example](backend/.env.example): model name, OCR language, sema
 
 - **Matched text coverage**: word count in distinct submitted passages flagged by configured matching rules divided by submitted word count; each supplied reference passage can contribute to at most one flagged match per scan. It is unavailable without references and is not a plagiarism percentage.
 - **Lexical similarity**: a blend of word uni/bi-gram and character 3–5 gram TF-IDF cosine similarity.
-- **Semantic similarity**: embedding cosine similarity from the configured local SentenceTransformer model. The default model is English-focused; the optional multilingual model supports cross-language comparisons. Scores can reflect shared concepts, not copying.
+- **Semantic similarity**: embedding cosine similarity from the configured local multilingual SentenceTransformer model. Scores can reflect shared concepts, not copying.
 - **Writing-pattern index**: a transparent exploratory blend of sentence-length variation and lexical diversity. It is not a classifier, probability, or validated AI authorship signal. Never use it alone to accuse or penalize an author.
 
 No web-wide or publisher corpus is searched. Human review of source context, quotation, attribution, and common terminology is necessary.

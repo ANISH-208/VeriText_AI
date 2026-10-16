@@ -3,7 +3,7 @@ load_dotenv()
 
 import os
 
-MODEL_NAME = os.getenv("VERITEXT_MODEL_NAME", "sentence-transformers/all-MiniLM-L6-v2")
+MODEL_NAME = os.getenv("VERITEXT_MODEL_NAME", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
 ENABLE_SEMANTIC = os.getenv("VERITEXT_ENABLE_SEMANTIC", "true").lower() == "true"
 MAX_UPLOAD_MB = int(os.getenv("VERITEXT_MAX_UPLOAD_MB", "12"))
 MAX_TEXT_CHARS = int(os.getenv("VERITEXT_MAX_TEXT_CHARS", "200000"))
